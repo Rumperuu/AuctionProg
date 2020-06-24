@@ -1,0 +1,1 @@
+javac *.java && start rmiregistry
