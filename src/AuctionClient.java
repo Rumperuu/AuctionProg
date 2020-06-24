@@ -1,5 +1,5 @@
 /*
- *                             AuctionProg 1.0                        
+ *                             AuctionProg 2.0                        
  *                  Copyright © 2016 Ben Goldsworthy (rumps)        
  *                                                                      
  * A program to facilitate a networked auction system.             
@@ -37,85 +37,108 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
 /**
- **   @author  Ben Goldsworthy (rumps) <bgoldsworthy96 @ gmail.com>
- **   @version 1.0
+ **   @author  Ben Goldsworthy (rumps) <me+auctionprog@bengoldsworthy.net>
+ **   @version 2.0
  **/
 public class AuctionClient {
    // This regex is used to ensure the email address entered is a valid
-   // email address format
+   // RFC 2822 email address format
    // (Source: http://stackoverflow.com/a/153751/4580273)
    private static final Pattern rfc2822 = Pattern.compile("^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$");
-   
+   private static Auction a;
+   private static ArrayList<String> options, debugOptions;
+   private static boolean debugMode;
+    
    /**
-    **   Displays the UI.
+    **   Sets up the program and runs the event loop.
     **   
     **   @param args Command-line arguments.
     **/
    public static void main(String[] args) {
+      debugMode = true;
+      
+      displayIntro();
+      
+      // Create the reference to the remote object through the 
+      // remiregistry. This comes first because if it fails we can 
+      // skip doing everything else.
       try {
-         // Create the reference to the remote object through the 
-         // remiregistry. This comes first because if it fails we can 
-         // skip doing everything else.
-         Auction a = (Auction) Naming.lookup("rmi://localhost/AuctionService");
-       
-         // Declares some variables that'll be used later on.
-         Scanner in = new Scanner(System.in);
-         UserWrapper currentUser = null;
-         int id;      
-         float price;
+         a = (Auction) Naming.lookup("rmi://localhost/AuctionService");
+         
+         setOptions();
          
          // Authenticates the user, if the program is run with a username
          // as an argument. Otherwise, prompts the user to create a new
          // user.
-         currentUser = login(a, (args.length > 0) ? args[0] : "server");
-        
-         while(true) {
-            // Resets the variables after each run through.
-            price = 0.0f;
-            
-            printOptions();
-            
-            switch(in.nextLine()) {
-            // This case takes auction details from the user and then
-            // creates a new auction with those.
-            case "1":
-               createNewAuction(a, currentUser);
-               break;
-            // This case removes the auction with the given ID, provided it
-            // is owned by the current user.
-            case "2":
-               deleteAuction(a, currentUser);
-               break;
-            // This case displays all the currently-available auctions.
-            case "3":
-               displayAuctions(a);
-               break;
-            // This case places a bid on an auction.
-            case "4":
-               placeBid(a, currentUser);
-               break; 
-            // This case exits the program.
-            case "5":
-               System.exit(1);
-               break;
-            // The below cases are remote debug commands.
-            // This case remotely shuts down the server.
-            case "6":
-               a.close();
-               break;
-            default:
-               break;
-            }
-         }
+         UserWrapper currentUser = login((args.length > 0) ? args[0] : "server");
+      
+         eventLoop(currentUser);
       } catch (Exception e) {
-         System.out.println();
-         System.out.println("Exception");
          System.out.println(e);
       }
-      System.exit(-1);
    }
    
-   private static UserWrapper login(Auction a, String username) throws java.rmi.RemoteException, java.security.NoSuchAlgorithmException, java.security.InvalidKeyException, java.security.SignatureException {
+   /*
+    *    Loops indefinitely, taking user input for various options.
+    */
+   private static void eventLoop(UserWrapper currentUser) throws Exception {
+      Scanner in = new Scanner(System.in);
+      
+      while(true) {         
+         printOptions();
+         try {
+            int enteredOption = Integer.parseInt(in.nextLine());
+            System.out.println();
+            
+            if(enteredOption < options.size()) {
+               switch(options.get(enteredOption)) {
+               // This case takes auction details from the user and then
+               // creates a new auction with those.
+               case "Create auction":
+                  createNewAuction(currentUser);
+                  break;
+               // This case removes the auction with the given ID, provided it
+               // is owned by the current user.
+               case "Close auction":
+                  closeAuction(currentUser);
+                  break;
+               // This case displays all the currently-available auctions.
+               case "View all auctions":
+                  displayAuctions();
+                  break;
+               // This case places a bid on an auction.
+               case "Bid on auction":
+                  placeBid(currentUser);
+                  break; 
+               case "Quit":
+                  System.exit(1);
+                  break;
+               default: break;
+               }
+            } else if(debugMode) {
+               switch(debugOptions.get(enteredOption-options.size())) {
+               case "Replicate server":
+                  System.out.println("Server replicating...");
+                  a.replicate();
+                  System.out.println(a.getStatusofLast());
+                  break;
+               case "Close server":
+                  a.close();
+                  break;
+               default: break;
+               }
+            }
+         } catch (NumberFormatException e) {
+            System.out.println("\nError: That is not a valid option.\n");
+         }
+      }
+   }
+   
+   /*
+    *    Logs a user in if they are preexisting (after authentication), or
+    *    prompts a user to create a new user if not.
+    */
+   private static UserWrapper login(String username) throws java.rmi.RemoteException, java.security.NoSuchAlgorithmException, java.security.InvalidKeyException, java.security.SignatureException {
       UserWrapper user = null;
       
       // If the user has run the program with a username argument,
@@ -169,8 +192,8 @@ public class AuctionClient {
             System.out.print("Enter name: ");
             name = in.nextLine();
             
-            System.out.print("Enter email: ");
             while (!rfc2822.matcher(email).matches()) {
+               System.out.print("Enter email: ");
                email = in.nextLine();
                if (!rfc2822.matcher(email).matches()) System.out.println("\nError: invalid email address\n");
             }
@@ -179,9 +202,14 @@ public class AuctionClient {
                System.out.print("Enter username ('server' is prohibited): ");
                username = in.nextLine();
             }
-                     
-            user = a.registerUser(name, email, username);
-            System.out.println(a.getStatusofLast());
+             
+            try {
+               user = a.registerUser(new UserWrapper(name, email, username));
+               System.out.println(a.getStatusofLast());
+            } catch (NullPointerException e) {
+               System.out.println(a.getStatusofLast());
+               System.exit(0);
+            }
          }
          
          // Upon a successful user creation, new keys are generated and
@@ -198,12 +226,44 @@ public class AuctionClient {
       return user;
    }
    
-   private static void printOptions() {
-      System.out.println("1\tCreate auction\n2\tDelete auction\n3\tView auctions\n4\tBid on auction\n5\tQuit\n6\tClose server");
-      System.out.print("Choose option: ");   
+   /*
+    *    Sets the suite of options to present to the user.
+    */
+   private static void setOptions() {
+      options = new ArrayList<String>();
+      options.add("Create auction");
+      options.add("Close auction");
+      options.add("View all auctions");
+      options.add("Bid on auction");
+      options.add("Quit");
+      
+      debugOptions = new ArrayList<String>();
+      debugOptions.add("Replicate server");  
+      debugOptions.add("Close server"); 
    }
    
-   private static void createNewAuction(Auction a, UserWrapper currentUser) throws java.rmi.RemoteException {
+   /*
+    *    Prints the options for the user.
+    */
+   private static void printOptions() {
+      for(String option: options) {
+         System.out.println(options.indexOf(option) +"\t"+option);
+      }
+      if (debugMode) {
+         System.out.println("DEBUG");
+         int num = options.size();
+         for(String option: debugOptions) {
+            System.out.println((num++)+"\t"+option);
+         }
+      }  
+      System.out.print("Choose option: "); 
+   }
+   
+   /*
+    *    Prompts for auction details and then sends it off to be validated
+    *    and created.
+    */
+   private static void createNewAuction(UserWrapper currentUser) throws java.rmi.RemoteException {
       float startPrice = 0.0f;
       float reservePrice = 0.0f;
       Scanner in = new Scanner(System.in);
@@ -220,38 +280,73 @@ public class AuctionClient {
             reservePrice = Float.parseFloat(in.nextLine());
          }
          
-         a.createAuction(desc, currentUser, startPrice, reservePrice);
+         a.openNewAuction(new AuctionWrapper(0, desc, currentUser, startPrice, reservePrice));
          System.out.println(a.getStatusofLast());
       } catch(NumberFormatException ex){
          System.out.println("\nError: not a valid price\n");
       }   
    }
    
-   private static void deleteAuction(Auction a, UserWrapper currentUser) throws java.rmi.RemoteException {
+   /*
+    *    Closes an auction (after sending the request off for validation).
+    */
+   private static void closeAuction(UserWrapper currentUser) throws java.rmi.RemoteException {
       int id;
       UserWrapper winner;
       Scanner in = new Scanner(System.in);
       
-      if (!a.getAuctions().isEmpty()) {
+      if (!a.showAllAuctions().isEmpty()) {
          System.out.print("Enter auction number: ");
          id = Integer.parseInt(in.nextLine());
          
-         try {
-            winner = a.removeAuction(id, currentUser);
-            System.out.println("\nAuction won by: "+winner.getName()+" <"+winner.getEmail()+">\n");
-         } catch(NullPointerException e) {
-            System.out.println(a.getStatusofLast());
-         }
+         a.closeAuction(id, currentUser);
+         System.out.println(a.getStatusofLast());
       } else {
          System.out.println("\nNo auctions available\n");
       }
    }
    
-   private static void displayAuctions(Auction a) throws java.rmi.RemoteException {
-      if (!a.getAuctions().isEmpty()) {
+   /*
+    *    Displays the program intro preamble.
+    */
+   private static void displayIntro() {
+      ArrayList<String> lines = new ArrayList<String>();
+      lines.add("");
+      lines.add("AuctionProg 1.0");
+      lines.add("Copyright \u00a9 2016 Ben Goldsworthy (rumps)");
+      lines.add("");
+      lines.add("A program to facilitate a networked auction system");
+      lines.add("This file is part of AuctionProg.");
+      lines.add("");
+      lines.add("AuctionProg is free software: you can redistribute it and/or modify");
+      lines.add("it under the terms of the GNU General Public License as published by");
+      lines.add("the Free Software Foundation, either version 3 of the License, or");
+      lines.add("(at your option) any later version.");
+      lines.add("");
+      lines.add("AuctionProg is distributed in the hope that it will be useful,");
+      lines.add("but WITHOUT ANY WARRANTY; without even the implied warranty of");
+      lines.add("MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the");
+      lines.add("GNU General Public License for more details.");
+      lines.add("");
+      lines.add("You should have received a copy of the GNU General Public License");
+      lines.add("along with AuctionProg.  If not, see <http://www.gnu.org/licenses/>.");
+      lines.add("");
+      
+      for(String line: lines){
+         System.out.println(line);
+      }
+   }
+  
+   /*
+    *    Displays all the available auctions.
+    */
+   private static void displayAuctions() throws java.rmi.RemoteException {
+      if (!a.showAllAuctions().isEmpty()) {
+         System.out.println();
          System.out.println("#\tOwner\tPrice\tDesc");
          for (int i = 0; i < 80; i++) System.out.print("-");
-         for(AuctionWrapper auction: a.getAuctions()){
+         System.out.println();
+         for(AuctionWrapper auction: a.showAllAuctions()){
             System.out.println(auction.getID()+"\t"+auction.getOwner().getUsername()+"\t\u00A3"+String.format("%.2f", auction.getPrice())+"\t"+auction.getDesc());
          }
          System.out.println("");
@@ -260,10 +355,13 @@ public class AuctionClient {
       }
    }
    
-   private static void placeBid(Auction a, UserWrapper currentUser) throws java.rmi.RemoteException {
+   /*
+    *    Takes bid details and sends the bid off.
+    */
+   private static void placeBid(UserWrapper currentUser) throws java.rmi.RemoteException {
       Scanner in = new Scanner(System.in);
       
-      if (!a.getAuctions().isEmpty()) {
+      if (!a.showAllAuctions().isEmpty()) {
          try{
             int id;
             float price;
@@ -284,9 +382,12 @@ public class AuctionClient {
       }   
    }
    
+   /*
+    *    Reads a user's private key from a file.
+    */
    private static PrivateKey readKey(String username) {
       try {
-         FileInputStream keyfis = new FileInputStream(username + "priv.key");
+         FileInputStream keyfis = new FileInputStream("../key/client/"+username + "priv.key");
          byte[] encKey = new byte[keyfis.available()];
          keyfis.read(encKey);
          keyfis.close();
@@ -302,9 +403,12 @@ public class AuctionClient {
          return null;
       }
    }
+   /*
+    *    Reads the server's public key from a file.
+    */
    private static PublicKey readKey() {
       try {
-         FileInputStream keyfis = new FileInputStream("serverpub.key");
+         FileInputStream keyfis = new FileInputStream("../key/client/serverpub.key");
          byte[] encKey = new byte[keyfis.available()];
          keyfis.read(encKey);
          keyfis.close();   
@@ -321,16 +425,25 @@ public class AuctionClient {
       }
    }
    
+   /*
+    *    Writes a private key to a file.
+    */
    private static void writeKey(PrivateKey pKey, String username) {
       wK(pKey, username, "priv");
    }
+   /*
+    *    Writes a public key to a file.
+    */
    private static void writeKey(PublicKey pKey, String username) {
       wK(pKey, username, "pub");
    }
+   /*
+    *    Actually writes a key to a file.
+    */
    private static void wK(Key pKey, String username, String type) {
       try {
          byte[] key = pKey.getEncoded();
-         FileOutputStream keyfos = new FileOutputStream(username+type+".key");
+         FileOutputStream keyfos = new FileOutputStream("../key/client/"+username+type+".key");
          keyfos.write(key);
          keyfos.close();
       } catch (Exception e) {

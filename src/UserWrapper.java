@@ -1,5 +1,5 @@
 /*
- *                             AuctionProg 1.0                        
+ *                             AuctionProg 2.0                        
  *                  Copyright © 2016 Ben Goldsworthy (rumps)        
  *                                                                      
  * A program to facilitate a networked auction system.             
@@ -28,7 +28,7 @@ import java.io.*;
 
 /**
  **   @author  Ben Goldsworthy (rumps) <me+auctionprog@bengoldsworthy.net>
- **   @version 1.0
+ **   @version 2.0
  **/
 public class UserWrapper implements Serializable {
    private String name;
@@ -49,19 +49,23 @@ public class UserWrapper implements Serializable {
    
    /**   
     **   Accessor Method. Returns the user's name.
-    **   @param The user's name.
+    **   @return The user's name.
     **/
 	public String getName() {
 		return this.name;
 	}
    
+   /**   
+    **   Accessor Method. Returns the user's username.
+    **   @return The user's username.
+    **/
 	public String getUsername() {
 		return this.username;
 	}
    
    /**   
     **   Accessor Method. Returns the user's email address.
-    **   @param The user's email address.
+    **   @return The user's email address.
     **/
    public String getEmail() {
 		return this.email;

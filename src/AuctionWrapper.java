@@ -1,5 +1,5 @@
 /*
- *                             AuctionProg 1.0                        
+ *                             AuctionProg 2.0                        
  *                  Copyright © 2016 Ben Goldsworthy (rumps)        
  *                                                                      
  * A program to facilitate a networked auction system.             
@@ -28,7 +28,7 @@ import java.io.*;
 
 /**
  **   @author  Ben Goldsworthy (rumps) <me+auctionprog@bengoldsworthy.net>
- **   @version 1.0
+ **   @version 2.0
  **/
 public class AuctionWrapper implements Serializable {
    private int id;
@@ -46,7 +46,7 @@ public class AuctionWrapper implements Serializable {
     **   @param startingPrice The starting price of the auction.
     **   @param reserve The reserve price of the auction.
     **/
-	public AuctionWrapper(int id, String desc, UserWrapper owner, float startingPrice, float reserve){
+	public AuctionWrapper(int id, String desc, UserWrapper owner, float startingPrice, float reserve) {
 		this.id = id;
 		this.desc = desc;
 		this.owner = owner;
@@ -119,5 +119,14 @@ public class AuctionWrapper implements Serializable {
     **/
    public float getReserve() {
 		return this.reserve;
+	}
+   
+   
+   /**   
+    **   Mutator Method. Sets the auction ID.
+    **   @param id The new auction ID.
+    **/
+   public void setID(int id) {
+		this.id = id;
 	}
 }
